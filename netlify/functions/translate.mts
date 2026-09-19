@@ -45,40 +45,53 @@ function addressInstruction(addressMode: string) {
 }
 
 async function runModel(openai: OpenAI, model: string, system: string, payload: unknown) {
-  const completion = await openai.chat.completions.create({
+  const request = {
     model,
     messages: [
-      { role: "system", content: system },
-      { role: "user", content: JSON.stringify(payload) }
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "subtitle_translations",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            translations: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "integer" },
-                  ru: { type: "string" }
-                },
-                required: ["id", "ru"],
-                additionalProperties: false
+      { role: "system" as const, content: system },
+      { role: "user" as const, content: JSON.stringify(payload) }
+    ]
+  };
+
+  try {
+    const completion = await openai.chat.completions.create({
+      ...request,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "subtitle_translations",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              translations: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "integer" },
+                    ru: { type: "string" }
+                  },
+                  required: ["id", "ru"],
+                  additionalProperties: false
+                }
               }
-            }
-          },
-          required: ["translations"],
-          additionalProperties: false
+            },
+            required: ["translations"],
+            additionalProperties: false
+          }
         }
       }
-    }
-  });
-  return parseTranslations(completion.choices[0]?.message?.content ?? null);
+    });
+    return parseTranslations(completion.choices[0]?.message?.content ?? null);
+  } catch (error: any) {
+    const detail = String(error?.message || "");
+    const schemaRejected = Number(error?.status) === 400 && /response_format|json_schema|structured/i.test(detail);
+    if (!schemaRejected) throw error;
+
+    const fallback = await openai.chat.completions.create(request);
+    return parseTranslations(fallback.choices[0]?.message?.content ?? null);
+  }
 }
 
 export default async (req: Request, _context: Context) => {
@@ -116,6 +129,10 @@ export default async (req: Request, _context: Context) => {
       "Use Russian ё only when it improves clarity; otherwise normal editorial Russian is fine.",
       "Return ONLY a JSON object with key translations, whose value is an array of objects {id:number, ru:string}. Include every input id exactly once."
     ].join("\n\n");
+
+    if (!Netlify.env.get("OPENAI_BASE_URL")) {
+      return json({ error: "AI Gateway ещё не активирован для этого проекта. Повторите после production-deploy." }, 503);
+    }
 
     const openai = new OpenAI();
 
@@ -166,8 +183,13 @@ export default async (req: Request, _context: Context) => {
     return json({ translations, reviewed, warnings, models: qualityMode === "quality" ? [TRANSLATOR_MODEL, EDITOR_MODEL] : [TRANSLATOR_MODEL] });
   } catch (error: any) {
     console.error("translate error", error);
-    const message = error?.status === 429 ? "Лимит AI временно исчерпан. Попробуйте чуть позже." : "Не удалось выполнить AI-перевод.";
-    return json({ error: message }, error?.status === 429 ? 429 : 500);
+    const status = Number(error?.status) || 500;
+    let message = "Не удалось выполнить AI-перевод.";
+    if (status === 429) message = "Лимит AI временно исчерпан. Попробуйте чуть позже.";
+    else if (status === 401 || status === 403) message = "AI Gateway не авторизовал запрос. Проверьте, что AI Features включены в Netlify.";
+    else if (status === 404) message = "AI Gateway не нашёл выбранную модель.";
+    else if (status === 400) message = "AI Gateway отклонил запрос к модели.";
+    return json({ error: message, code: `AI_${status}` }, status >= 400 && status < 600 ? status : 500);
   }
 };
 
