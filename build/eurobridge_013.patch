@@ -1,0 +1,225 @@
+diff -ruN eb012_new/app/build.gradle eb013_new/app/build.gradle
+--- eb012_new/app/build.gradle	2026-09-19 08:11:01.934446132 +0000
++++ eb013_new/app/build.gradle	2026-09-19 08:20:13.189865412 +0000
+@@ -10,8 +10,8 @@
+         applicationId = 'com.eurobridge.vpn'
+         minSdk = 23
+         targetSdk = 36
+-        versionCode = 3
+-        versionName = '0.1.2'
++        versionCode = 4
++        versionName = '0.1.3'
+     }
+ 
+     buildTypes {
+diff -ruN eb012_new/app/src/main/java/com/eurobridge/vpn/MainActivity.java eb013_new/app/src/main/java/com/eurobridge/vpn/MainActivity.java
+--- eb012_new/app/src/main/java/com/eurobridge/vpn/MainActivity.java	2026-09-19 08:11:01.934161792 +0000
++++ eb013_new/app/src/main/java/com/eurobridge/vpn/MainActivity.java	2026-09-19 08:20:13.189729592 +0000
+@@ -26,6 +26,9 @@
+ 
+ import java.io.File;
+ import java.io.FileOutputStream;
++import java.io.FileInputStream;
++import java.io.InputStream;
++import java.io.OutputStream;
+ import java.nio.charset.StandardCharsets;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+@@ -45,12 +48,17 @@
+     private Spinner extraCountrySpinner;
+     private Button refreshButton;
+     private Button connectButton;
++    private Button saveProfileButton;
++    private TextView profileInfo;
+     private ProgressBar progress;
+     private TextView status;
+     private ListView list;
+     private ServerAdapter adapter;
+     private int selectedIndex = -1;
+     private String pinnedIp = null;
++    private File pendingSaveProfile;
++    private VpnServer pendingSaveServer;
++    private static final int REQUEST_SAVE_PROFILE = 4103;
+ 
+     private static final List<Country> COUNTRIES = Arrays.asList(
+             new Country("EU", "🌍 Любая страна Европы"),
+@@ -193,10 +201,25 @@
+         list.setOnItemClickListener((parent, view, position, id) -> {
+             selectedIndex = position;
+             list.setItemChecked(position, true);
++            profileInfo.setText("Профиль .ovpn: будет создан для " + servers.get(position).ip);
+             updateConnectLabel();
+         });
+         root.addView(list, lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+ 
++        profileInfo = text("Профиль .ovpn: выберите мост", 12, Typeface.BOLD);
++        profileInfo.setTextColor(Color.rgb(55, 70, 90));
++        profileInfo.setPadding(dp(4), dp(7), dp(4), dp(3));
++        root.addView(profileInfo);
++
++        saveProfileButton = new Button(this);
++        saveProfileButton.setText("СОХРАНИТЬ .OVPN");
++        saveProfileButton.setEnabled(false);
++        saveProfileButton.setAllCaps(false);
++        saveProfileButton.setOnClickListener(v -> saveSelectedProfile());
++        LinearLayout.LayoutParams sp = lp(ViewGroup.LayoutParams.MATCH_PARENT, dp(50), 0);
++        sp.setMargins(0, dp(3), 0, dp(5));
++        root.addView(saveProfileButton, sp);
++
+         connectButton = new Button(this);
+         connectButton.setText("ПОДКЛЮЧИТЬ");
+         connectButton.setEnabled(false);
+@@ -256,6 +279,7 @@
+                         selectedIndex = 0;
+                         list.setItemChecked(0, true);
+                         VpnServer best = servers.get(0);
++                        profileInfo.setText("Профиль .ovpn: будет создан для " + best.ip);
+                         String message = "Найдено: " + servers.size() + ". Выбран лучший: " +
+                                 best.countryLong + ", " + best.pingText() + ", " + best.speedText();
+                         if (!extraCountry.code.isEmpty()) {
+@@ -268,6 +292,7 @@
+                         status.setText(message);
+                     } else {
+                         selectedIndex = -1;
++                        profileInfo.setText("Профиль .ovpn: мост не выбран");
+                         String message = "В выбранной стране сейчас нет доступных OpenVPN-узлов.";
+                         if (!extraCountry.code.isEmpty() && selection.pinnedIp == null) {
+                             message += " Дополнительный узел " + extraCountry.name + " тоже не найден.";
+@@ -338,12 +363,16 @@
+         io.execute(() -> {
+             try {
+                 File profile = createProfile(server);
++                long profileBytes = profile.length();
+                 Uri uri = new Uri.Builder()
+                         .scheme("content")
+                         .authority("com.eurobridge.vpn.profiles")
+                         .appendPath(profile.getName())
+                         .build();
+-                main.post(() -> launchOpenVpn(uri, server));
++                main.post(() -> {
++                    showProfileReady(profile, server, profileBytes);
++                    launchOpenVpn(uri, server);
++                });
+             } catch (Exception e) {
+                 main.post(() -> {
+                     status.setText("Ошибка профиля: " + safeMessage(e));
+@@ -353,6 +382,96 @@
+         });
+     }
+ 
++    private void saveSelectedProfile() {
++        if (selectedIndex < 0 || selectedIndex >= servers.size()) return;
++        VpnServer server = servers.get(selectedIndex);
++        saveProfileButton.setEnabled(false);
++        status.setText("Готовлю .ovpn для сохранения: " + server.ip + "…");
++
++        io.execute(() -> {
++            try {
++                File profile = createProfile(server);
++                long profileBytes = profile.length();
++                main.post(() -> {
++                    showProfileReady(profile, server, profileBytes);
++                    pendingSaveProfile = profile;
++                    pendingSaveServer = server;
++                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
++                    intent.addCategory(Intent.CATEGORY_OPENABLE);
++                    intent.setType("application/x-openvpn-profile");
++                    intent.putExtra(Intent.EXTRA_TITLE, profile.getName());
++                    try {
++                        startActivityForResult(intent, REQUEST_SAVE_PROFILE);
++                    } catch (ActivityNotFoundException e) {
++                        status.setText("На телефоне нет системного окна сохранения файлов.");
++                        saveProfileButton.setEnabled(true);
++                    }
++                });
++            } catch (Exception e) {
++                main.post(() -> {
++                    profileInfo.setText("Профиль .ovpn: ошибка — " + safeMessage(e));
++                    status.setText("Ошибка профиля: " + safeMessage(e));
++                    saveProfileButton.setEnabled(true);
++                });
++            }
++        });
++    }
++
++    private void showProfileReady(File profile, VpnServer server, long bytes) {
++        double kb = bytes / 1024.0;
++        String size = String.format(Locale.US, "%.1f КБ", kb);
++        profileInfo.setText("Профиль: " + profile.getName() + " • " + size + " • меньше 256 КБ ✓");
++        status.setText("Готов профиль " + size + " для " + server.countryLong + " / " + server.ip);
++        saveProfileButton.setEnabled(true);
++    }
++
++    @Override
++    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
++        super.onActivityResult(requestCode, resultCode, data);
++        if (requestCode != REQUEST_SAVE_PROFILE) return;
++        File profile = pendingSaveProfile;
++        VpnServer server = pendingSaveServer;
++        pendingSaveProfile = null;
++        pendingSaveServer = null;
++        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
++            status.setText("Сохранение .ovpn отменено.");
++            saveProfileButton.setEnabled(selectedIndex >= 0 && selectedIndex < servers.size());
++            return;
++        }
++        Uri target = data.getData();
++        if (profile == null || !profile.exists()) {
++            status.setText("Временный .ovpn уже недоступен. Нажмите «СОХРАНИТЬ .OVPN» ещё раз.");
++            saveProfileButton.setEnabled(true);
++            return;
++        }
++        io.execute(() -> {
++            try (InputStream in = new FileInputStream(profile);
++                 OutputStream out = getContentResolver().openOutputStream(target, "w")) {
++                if (out == null) throw new IllegalStateException("Не удалось открыть выбранный файл для записи");
++                byte[] buf = new byte[8192];
++                int n;
++                long total = 0;
++                while ((n = in.read(buf)) != -1) {
++                    out.write(buf, 0, n);
++                    total += n;
++                }
++                final long savedBytes = total;
++                main.post(() -> {
++                    double kb = savedBytes / 1024.0;
++                    String size = String.format(Locale.US, "%.1f КБ", kb);
++                    profileInfo.setText("Сохранён .ovpn: " + profile.getName() + " • " + size + " • меньше 256 КБ ✓");
++                    status.setText(".ovpn сохранён. В OpenVPN Connect нажмите Upload File и выберите именно этот файл, не APK.");
++                    saveProfileButton.setEnabled(true);
++                });
++            } catch (Exception e) {
++                main.post(() -> {
++                    status.setText("Не удалось сохранить .ovpn: " + safeMessage(e));
++                    saveProfileButton.setEnabled(true);
++                });
++            }
++        });
++    }
++
+     private File createProfile(VpnServer server) throws Exception {
+         byte[] decoded = Base64.decode(server.configBase64, Base64.DEFAULT);
+         String source = new String(decoded, StandardCharsets.UTF_8).replace("\r\n", "\n");
+@@ -441,7 +560,9 @@
+         refreshButton.setEnabled(!busy);
+         countrySpinner.setEnabled(!busy);
+         extraCountrySpinner.setEnabled(!busy);
+-        connectButton.setEnabled(selectedIndex >= 0 && selectedIndex < servers.size());
++        boolean hasSelection = selectedIndex >= 0 && selectedIndex < servers.size();
++        connectButton.setEnabled(hasSelection);
++        saveProfileButton.setEnabled(!busy && hasSelection);
+     }
+ 
+     private void updateConnectLabel() {
+@@ -449,9 +570,11 @@
+             VpnServer s = servers.get(selectedIndex);
+             connectButton.setText("ПОДКЛЮЧИТЬ • " + s.countryShort + " • " + s.pingText());
+             connectButton.setEnabled(true);
++            saveProfileButton.setEnabled(true);
+         } else {
+             connectButton.setText("ПОДКЛЮЧИТЬ");
+             connectButton.setEnabled(false);
++            saveProfileButton.setEnabled(false);
+         }
+     }
+ 
