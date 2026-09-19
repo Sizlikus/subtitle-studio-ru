@@ -1,0 +1,56 @@
+                     updateConnectLabel();
+@@ -207,13 +280,55 @@
+             } catch (Exception e) {
+                 main.post(() -> {
+                     setBusy(false);
+-                    status.setText("Не удалось обновить список: " + safeMessage(e));
++                    status.setText("Не удалось обновить список: " + safeMessage(e) +
++                            (servers.isEmpty() ? "" : ". Оставлены ранее найденные мосты."));
+                     updateConnectLabel();
+                 });
+             }
+         });
+     }
+ 
++    private DisplaySelection buildDisplaySelection(List<VpnServer> allEurope, String primaryCode, String extraCode) {
++        List<VpnServer> visible = new ArrayList<>();
++        if ("EU".equals(primaryCode)) {
++            visible.addAll(allEurope);
++        } else {
++            for (VpnServer server : allEurope) {
++                if (primaryCode.equals(server.countryShort)) visible.add(server);
++            }
++        }
++
++        VpnServer pinned = null;
++        if (extraCode != null && !extraCode.isEmpty()) {
++            for (VpnServer server : allEurope) {
++                if (extraCode.equals(server.countryShort)) {
++                    pinned = server;
++                    break;
++                }
++            }
++        }
++
++        String pinIp = null;
++        if (pinned != null) {
++            pinIp = pinned.ip;
++            int current = -1;
++            for (int i = 0; i < visible.size(); i++) {
++                if (sameServer(visible.get(i), pinned)) { current = i; break; }
++            }
++            if (current < 0) {
++                visible.add(Math.min(1, visible.size()), pinned);
++            } else if (current > 1) {
++                visible.remove(current);
++                visible.add(1, pinned);
++            }
++        }
++        return new DisplaySelection(visible, pinIp);
++    }
++
++    private boolean sameServer(VpnServer a, VpnServer b) {
++        return a.ip.equals(b.ip) && a.hostName.equals(b.hostName);
++    }
++
+     private void openSelectedProfile() {
