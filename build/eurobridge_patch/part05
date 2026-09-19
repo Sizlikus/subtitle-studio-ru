@@ -1,0 +1,54 @@
+         if (selectedIndex < 0 || selectedIndex >= servers.size()) return;
+         VpnServer server = servers.get(selectedIndex);
+@@ -312,7 +427,8 @@
+         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
+         refreshButton.setEnabled(!busy);
+         countrySpinner.setEnabled(!busy);
+-        connectButton.setEnabled(!busy && selectedIndex >= 0 && selectedIndex < servers.size());
++        extraCountrySpinner.setEnabled(!busy);
++        connectButton.setEnabled(selectedIndex >= 0 && selectedIndex < servers.size());
+     }
+ 
+     private void updateConnectLabel() {
+@@ -357,6 +473,15 @@
+         io.shutdownNow();
+     }
+ 
++    private static final class DisplaySelection {
++        final List<VpnServer> servers;
++        final String pinnedIp;
++        DisplaySelection(List<VpnServer> servers, String pinnedIp) {
++            this.servers = servers;
++            this.pinnedIp = pinnedIp;
++        }
++    }
++
+     private static final class Country {
+         final String code;
+         final String name;
+@@ -374,7 +499,8 @@
+             row.setPadding(dp(12), dp(10), dp(12), dp(10));
+ 
+             VpnServer s = getItem(position);
+-            TextView top = text((position == 0 ? "★ " : "") + s.countryLong + "   " + s.ip, 15, Typeface.BOLD);
++            String marker = s.ip.equals(pinnedIp) ? "📌 " : (position == 0 ? "★ " : "");
++            TextView top = text(marker + s.countryLong + "   " + s.ip, 15, Typeface.BOLD);
+             top.setTextColor(Color.rgb(25, 37, 55));
+             row.addView(top);
+ 
+--- app/src/main/java/com/eurobridge/vpn/VpnGateClient.java
++++ app/src/main/java/com/eurobridge/vpn/VpnGateClient.java
+@@ -15,6 +15,14 @@
+ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Set;
++import java.util.concurrent.CompletionService;
++import java.util.concurrent.ExecutionException;
++import java.util.concurrent.ExecutorCompletionService;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
+ 
+ final class VpnGateClient {
