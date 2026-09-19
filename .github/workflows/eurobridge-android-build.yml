@@ -3,9 +3,9 @@ name: EuroBridge Android APK
 on:
   push:
     branches:
-      - eurobridge-android-build
+      - eurobridge-android-011
     paths:
-      - 'build/eurobridge_chunks/**'
+      - 'build/eurobridge_patch/**'
       - '.github/workflows/eurobridge-android-build.yml'
   workflow_dispatch:
 
@@ -19,7 +19,7 @@ jobs:
       - name: Checkout build branch
         uses: actions/checkout@v4
 
-      - name: Reassemble and verify source archive
+      - name: Reassemble and verify base source archive
         shell: bash
         run: |
           set -euo pipefail
@@ -29,6 +29,18 @@ jobs:
           mkdir -p "$RUNNER_TEMP/eurobridge-src"
           unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/eurobridge-src"
           test -f "$RUNNER_TEMP/eurobridge-src/EuroBridgeAndroid/settings.gradle"
+
+      - name: Apply EuroBridge 0.1.1 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATCH="$RUNNER_TEMP/eurobridge-0.1.1.patch"
+          cat build/eurobridge_patch/part* > "$PATCH"
+          cd "$RUNNER_TEMP/eurobridge-src/EuroBridgeAndroid"
+          patch --batch --forward -p0 < "$PATCH"
+          grep -q "versionName = '0.1.1'" app/build.gradle
+          grep -q "extraCountrySpinner" app/src/main/java/com/eurobridge/vpn/MainActivity.java
+          grep -q "TimeUnit.SECONDS.toNanos(12)" app/src/main/java/com/eurobridge/vpn/VpnGateClient.java
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -69,7 +81,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EuroBridgeVPN-debug-apk
+          name: EuroBridgeVPN-0.1.1-debug-apk
           path: ${{ runner.temp }}/eurobridge-src/EuroBridgeAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
