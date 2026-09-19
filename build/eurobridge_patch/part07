@@ -1,0 +1,28 @@
++        throw new TimeoutException("Источники VPN Gate не ответили за 12 секунд");
+     }
+ 
+     private static String download(String source) throws Exception {
+         HttpURLConnection c = (HttpURLConnection) new URL(source).openConnection();
+-        c.setConnectTimeout(9000);
+-        c.setReadTimeout(15000);
++        c.setConnectTimeout(4500);
++        c.setReadTimeout(6500);
+         c.setInstanceFollowRedirects(true);
+-        c.setRequestProperty("User-Agent", "EuroBridgeVPN/0.1 Android");
++        c.setRequestProperty("User-Agent", "EuroBridgeVPN/0.1.1 Android");
+         c.setRequestProperty("Accept", "text/csv,text/plain,*/*");
+         int code = c.getResponseCode();
+         if (code < 200 || code >= 300) {
+--- app/build.gradle
++++ app/build.gradle
+@@ -10,8 +10,8 @@
+         applicationId = 'com.eurobridge.vpn'
+         minSdk = 23
+         targetSdk = 36
+-        versionCode = 1
+-        versionName = '0.1.0'
++        versionCode = 2
++        versionName = '0.1.1'
+     }
+ 
+     buildTypes {
