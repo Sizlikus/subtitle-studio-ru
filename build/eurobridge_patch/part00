@@ -1,0 +1,45 @@
+--- app/src/main/java/com/eurobridge/vpn/MainActivity.java
++++ app/src/main/java/com/eurobridge/vpn/MainActivity.java
+@@ -42,6 +42,7 @@
+     private final List<VpnServer> servers = new ArrayList<>();
+ 
+     private Spinner countrySpinner;
++    private Spinner extraCountrySpinner;
+     private Button refreshButton;
+     private Button connectButton;
+     private ProgressBar progress;
+@@ -49,6 +50,7 @@
+     private ListView list;
+     private ServerAdapter adapter;
+     private int selectedIndex = -1;
++    private String pinnedIp = null;
+ 
+     private static final List<Country> COUNTRIES = Arrays.asList(
+             new Country("EU", "🌍 Любая страна Европы"),
+@@ -82,14 +84,47 @@
+             new Country("SI", "🇸🇮 Словения"),
+             new Country("RS", "🇷🇸 Сербия"),
+             new Country("UA", "🇺🇦 Украина"),
+-            new Country("LU", "🇱🇺 Люксембург")
++            new Country("LU", "🇱🇺 Люксембург"),
++            new Country("CY", "🇨🇾 Кипр"),
++            new Country("MT", "🇲🇹 Мальта")
++    );
++
++    private static final List<Country> EXTRA_EU_COUNTRIES = Arrays.asList(
++            new Country("", "➕ Не добавлять отдельную страну ЕС"),
++            new Country("AT", "🇦🇹 Австрия"),
++            new Country("BE", "🇧🇪 Бельгия"),
++            new Country("BG", "🇧🇬 Болгария"),
++            new Country("HR", "🇭🇷 Хорватия"),
++            new Country("CY", "🇨🇾 Кипр"),
++            new Country("CZ", "🇨🇿 Чехия"),
++            new Country("DK", "🇩🇰 Дания"),
++            new Country("EE", "🇪🇪 Эстония"),
++            new Country("FI", "🇫🇮 Финляндия"),
++            new Country("FR", "🇫🇷 Франция"),
++            new Country("DE", "🇩🇪 Германия"),
++            new Country("GR", "🇬🇷 Греция"),
++            new Country("HU", "🇭🇺 Венгрия"),
++            new Country("IE", "🇮🇪 Ирландия"),
++            new Country("IT", "🇮🇹 Италия"),
