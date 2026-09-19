@@ -1,0 +1,40 @@
++    private void restoreSelections() {
+         String saved = getSharedPreferences(PREFS, MODE_PRIVATE).getString("country", "EU");
+         for (int i = 0; i < COUNTRIES.size(); i++) {
+             if (COUNTRIES.get(i).code.equals(saved)) {
+@@ -175,31 +222,57 @@
+                 break;
+             }
+         }
++        String savedExtra = getSharedPreferences(PREFS, MODE_PRIVATE).getString("extra_country", "");
++        for (int i = 0; i < EXTRA_EU_COUNTRIES.size(); i++) {
++            if (EXTRA_EU_COUNTRIES.get(i).code.equals(savedExtra)) {
++                extraCountrySpinner.setSelection(i);
++                break;
++            }
++        }
+     }
+ 
+     private void refreshServers() {
+         final Country country = COUNTRIES.get(countrySpinner.getSelectedItemPosition());
+-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("country", country.code).apply();
++        final Country extraCountry = EXTRA_EU_COUNTRIES.get(extraCountrySpinner.getSelectedItemPosition());
++        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
++                .putString("country", country.code)
++                .putString("extra_country", extraCountry.code)
++                .apply();
+         setBusy(true);
+-        status.setText("Получаю актуальный список узлов…");
+-        selectedIndex = -1;
+-        servers.clear();
+-        adapter.notifyDataSetChanged();
++        status.setText(servers.isEmpty() ? "Получаю актуальный список узлов…" : "Обновляю список… старые мосты пока доступны");
+ 
+         io.execute(() -> {
+             try {
+-                List<VpnServer> loaded = VpnGateClient.fetch(country.code, url -> main.post(() ->
+-                        status.setText("Источник: " + shortHost(url))));
++                List<VpnServer> allEurope = VpnGateClient.fetch("EU", url -> main.post(() ->
++                        status.setText("Проверяю: " + shortHost(url) + "…")));
++                DisplaySelection selection = buildDisplaySelection(allEurope, country.code, extraCountry.code);
+                 main.post(() -> {
