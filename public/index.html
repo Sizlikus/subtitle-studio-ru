@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Subtitle Studio — перевод ASS/SRT на русский</title>
+  <meta name="description" content="Перевод и редактура субтитров ASS/SRT с английского и китайского на русский через модели OpenAI." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <span class="eyebrow">ASS / SRT → RU</span>
+        <h1>Subtitle Studio</h1>
+        <p>Перевод субтитров с английского и китайского на естественный русский для озвучки. Таймкоды, ASS-стили и служебные теги сохраняются.</p>
+      </div>
+      <div class="status-pill" id="apiStatus">Готово к работе</div>
+    </header>
+
+    <section class="card upload-card">
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Загрузить файл субтитров">
+        <input id="fileInput" type="file" accept=".srt,.ass,text/plain" hidden />
+        <div class="drop-icon">↥</div>
+        <strong>Перетащите .srt или .ass</strong>
+        <span>или нажмите, чтобы выбрать файл</span>
+      </div>
+      <div class="file-meta hidden" id="fileMeta"></div>
+    </section>
+
+    <section class="card settings-card">
+      <div class="section-title">
+        <div><span class="step">1</span><h2>Настройки перевода</h2></div>
+        <span class="muted">OpenAI, без Google/Яндекс</span>
+      </div>
+      <div class="grid settings-grid">
+        <label>
+          Исходный язык
+          <select id="sourceLang">
+            <option value="auto">Определить автоматически</option>
+            <option value="en">Английский</option>
+            <option value="zh">Китайский</option>
+          </select>
+        </label>
+        <label>
+          Стиль
+          <select id="styleMode">
+            <option value="voiceover">Для озвучки — живо и естественно</option>
+            <option value="balanced">Нейтрально и точно</option>
+            <option value="compact">Кратко — под тайминг</option>
+          </select>
+        </label>
+        <label>
+          Качество
+          <select id="qualityMode">
+            <option value="quality">Перевод + редактор-проверяющий</option>
+            <option value="fast">Быстрый перевод</option>
+          </select>
+        </label>
+        <label>
+          Обращение
+          <select id="addressMode">
+            <option value="context">По контексту</option>
+            <option value="informal">На «ты»</option>
+            <option value="formal">На «вы»</option>
+          </select>
+        </label>
+      </div>
+      <label class="full-label">
+        Глоссарий / имена / пожелания
+        <textarea id="glossary" rows="3" placeholder="Например: Wei Wuxian → Вэй Усянь; Lan Wangji → Лань Ванцзи; не переводить названия техник; героиня говорит мягко и современно"></textarea>
+      </label>
+    </section>
+
+    <section class="card editor-card hidden" id="editorCard">
+      <div class="section-title">
+        <div><span class="step">2</span><h2>Редактор</h2></div>
+        <div class="actions-inline">
+          <button class="ghost" id="resetBtn" type="button">Вернуть оригинал</button>
+          <button class="primary" id="translateBtn" type="button">Перевести всё</button>
+        </div>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-line"><span id="progressBar"></span></div>
+        <div class="progress-text"><span id="progressText">Подготовка…</span><span id="progressCount"></span></div>
+      </div>
+      <div class="table-head">
+        <span>№ / время</span><span>Оригинал</span><span>Русский</span><span>Темп</span>
+      </div>
+      <div id="cueList" class="cue-list"></div>
+    </section>
+
+    <section class="card export-card hidden" id="exportCard">
+      <div class="section-title">
+        <div><span class="step">3</span><h2>Экспорт</h2></div>
+        <span class="muted" id="qaSummary">Структура файла сохранена</span>
+      </div>
+      <div class="export-actions">
+        <button class="primary" id="downloadBtn" type="button">Скачать перевод</button>
+        <button class="ghost" id="copyBtn" type="button">Копировать весь текст</button>
+      </div>
+    </section>
+
+    <footer>
+      <span>Файлы обрабатываются в браузере; на AI отправляется только текст реплик.</span>
+      <span>Перед публикацией перевода рекомендуется финальная человеческая вычитка.</span>
+    </footer>
+  </main>
+  <div class="toast hidden" id="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
