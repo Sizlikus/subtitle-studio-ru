@@ -1,0 +1,31 @@
+-                    servers.addAll(loaded);
++                    servers.clear();
++                    servers.addAll(selection.servers);
++                    pinnedIp = selection.pinnedIp;
+                     adapter.notifyDataSetChanged();
++                    list.clearChoices();
+                     if (!servers.isEmpty()) {
+                         selectedIndex = 0;
+                         list.setItemChecked(0, true);
+                         VpnServer best = servers.get(0);
+-                        status.setText("Найдено: " + servers.size() + ". Выбран лучший: " + best.countryLong + ", " + best.pingText() + ", " + best.speedText());
++                        String message = "Найдено: " + servers.size() + ". Выбран лучший: " +
++                                best.countryLong + ", " + best.pingText() + ", " + best.speedText();
++                        if (!extraCountry.code.isEmpty()) {
++                            if (selection.pinnedIp != null) {
++                                message += ". 📌 " + extraCountry.name + " добавлена в верх списка независимо от качества";
++                            } else {
++                                message += ". Для " + extraCountry.name + " сейчас нет OpenVPN-узла";
++                            }
++                        }
++                        status.setText(message);
+                     } else {
+-                        status.setText("В выбранной стране сейчас нет доступных OpenVPN-узлов.");
++                        selectedIndex = -1;
++                        String message = "В выбранной стране сейчас нет доступных OpenVPN-узлов.";
++                        if (!extraCountry.code.isEmpty() && selection.pinnedIp == null) {
++                            message += " Дополнительный узел " + extraCountry.name + " тоже не найден.";
++                        }
++                        status.setText(message);
+                     }
+                     setBusy(false);
