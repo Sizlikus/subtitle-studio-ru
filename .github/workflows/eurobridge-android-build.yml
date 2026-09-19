@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           ARCHIVE="$RUNNER_TEMP/EuroBridgeAndroid_project.zip"
           cat build/eurobridge_chunks/part* | tr -d '\r\n' | base64 --decode > "$ARCHIVE"
-          echo "8593c9ccc925506edbff0ee326be1ab53544b8e6e61cbb8be6b667b8a8082a0a  $ARCHIVE" | sha256sum -c -
+          echo "d1248238c5b58696d27827fb631a488c41e0e18f9caed9bd540893ea9b1cc039  $ARCHIVE" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/eurobridge-src"
           unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/eurobridge-src"
           test -f "$RUNNER_TEMP/eurobridge-src/EuroBridgeAndroid/settings.gradle"
@@ -69,7 +69,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EuroBridgeVPN-debug-apk
+          name: EuroBridgeVPN-0.1.1-debug-apk
           path: ${{ runner.temp }}/eurobridge-src/EuroBridgeAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
