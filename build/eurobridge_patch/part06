@@ -1,0 +1,44 @@
+     private static final String[] API_URLS = new String[]{
+@@ -35,28 +43,46 @@
+     }
+ 
+     static List<VpnServer> fetch(String countryCode, Progress progress) throws Exception {
+-        Exception last = null;
++        ExecutorService pool = Executors.newFixedThreadPool(API_URLS.length);
++        CompletionService<List<VpnServer>> completion = new ExecutorCompletionService<>(pool);
+         for (String url : API_URLS) {
+-            try {
++            completion.submit(() -> {
+                 if (progress != null) progress.onTrying(url);
+                 String csv = download(url);
+-                List<VpnServer> parsed = parse(csv, countryCode);
+-                if (!parsed.isEmpty()) return parsed;
+-                last = new IllegalStateException("Источник ответил, но подходящих OpenVPN-узлов нет");
+-            } catch (Exception e) {
+-                last = e;
++                return parse(csv, countryCode);
++            });
++        }
++
++        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(12);
++        Exception last = null;
++        try {
++            for (int i = 0; i < API_URLS.length; i++) {
++                long remaining = deadline - System.nanoTime();
++                if (remaining <= 0) break;
++                Future<List<VpnServer>> future = completion.poll(remaining, TimeUnit.NANOSECONDS);
++                if (future == null) break;
++                try {
++                    List<VpnServer> parsed = future.get();
++                    if (!parsed.isEmpty()) return parsed;
++                    last = new IllegalStateException("Источник ответил, но подходящих OpenVPN-узлов нет");
++                } catch (ExecutionException e) {
++                    Throwable cause = e.getCause();
++                    last = cause instanceof Exception ? (Exception) cause : new Exception(cause);
++                }
+             }
++        } finally {
++            pool.shutdownNow();
+         }
+         if (last != null) throw last;
+-        throw new IllegalStateException("Не удалось получить список VPN-узлов");
